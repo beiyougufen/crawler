@@ -1,20 +1,35 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
+
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 func main() {
 	url := "https://www.thepaper.cn"
+	body, err := Fetch(url)
+
+	if err != nil {
+		fmt.Printf("url: %v, read body failed: %v", url, err)
+		return
+	}
+
+	fmt.Printf("url: %v, body: %v", url, string(body))
+}
+
+func Fetch(url string) ([]byte, error) {
+
 	resp, err := http.Get(url)
 
 	if err != nil {
-		fmt.Printf("url: %v, error: %v", url, err)
-		return
+		panic(err)
 	}
 
 	defer resp.Body.Close()
@@ -23,23 +38,21 @@ func main() {
 		fmt.Printf("url: %v, status code: %v", url, resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	bodyReader := bufio.NewReader(resp.Body)
+	e := DeterminEncoding(bodyReader)
+	utf8Reader := transform.NewReader(bodyReader, e.NewDecoder())
+	return ioutil.ReadAll(utf8Reader)
+}
+
+func DeterminEncoding(r *bufio.Reader) encoding.Encoding {
+
+	bytes, err := r.Peek(1024)
 
 	if err != nil {
-		fmt.Printf("url: %v, read body failed: %v", url, err)
-		return
+		fmt.Printf("fetch error: %v", err)
+		return unicode.UTF8
 	}
 
-	numLinks := strings.Count(string(body), "<a")
-	fmt.Printf("homepage has %d links!\n", numLinks)
-
-	numLinks = bytes.Count(body, []byte("<a"))
-	fmt.Printf("homepage has %d links!\n", numLinks)
-
-	exist := strings.Contains(string(body), "疫情")
-	fmt.Printf("是否存在疫情：%v\n", exist)
-
-	exist = bytes.Contains(body, []byte("疫情"))
-	fmt.Printf("是否存在疫情：%v\n", exist)
-
+	e, _, _ := charset.DetermineEncoding(bytes, "")
+	return e
 }
