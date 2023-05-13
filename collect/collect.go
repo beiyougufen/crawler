@@ -15,15 +15,15 @@ import (
 )
 
 type Fetcher interface {
-	Get(url string) ([]byte, error)
+	Get(r *Request) ([]byte, error)
 }
 
 type BaseFetch struct {
 }
 
-func (BaseFetch) Get(url string) ([]byte, error) {
+func (BaseFetch) Get(r *Request) ([]byte, error) {
 
-	resp, err := http.Get(url)
+	resp, err := http.Get(r.Url)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (BaseFetch) Get(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("url: %v, status code: %v", url, resp.StatusCode)
+		fmt.Printf("url: %v, status code: %v", r.Url, resp.StatusCode)
 		return nil, err
 	}
 
@@ -48,7 +48,7 @@ type BrowserFetch struct {
 }
 
 // 模拟浏览器访问
-func (b BrowserFetch) Get(url string) ([]byte, error) {
+func (b BrowserFetch) Get(r *Request) ([]byte, error) {
 
 	client := &http.Client{
 		Timeout: b.Timeout,
@@ -59,11 +59,14 @@ func (b BrowserFetch) Get(url string) ([]byte, error) {
 		client.Transport = transport
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", r.Url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("new req failed: %w", err)
 	}
 
+	if len(r.Cookie) > 0 {
+		req.Header.Set("Cookie", r.Cookie)
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36")
 
 	resp, err := client.Do(req)
@@ -74,7 +77,7 @@ func (b BrowserFetch) Get(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("url: %v, status code: %v", url, resp.StatusCode)
+		fmt.Printf("url: %v, status code: %v", r.Url, resp.StatusCode)
 		return nil, err
 	}
 
